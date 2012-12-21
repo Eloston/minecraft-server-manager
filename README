@@ -1,0 +1,20 @@
+Minecraft Server Manager
+------------------------
+Developed and Maintained by Eloston
+
+Minecraft Server Manager is a 'wrapper' around your Minecraft server. It will present itself as a server to incomming clients when your server is not running, and will startup your server when a client tries to connect.
+
+Any version of Minecraft will work, as long as the protocol does not vary greately from the current version (as of the time of this writing, 1.4.6)
+
+Currently the Manager supports:
+-Reading from a white-list and kicking non-whitelisted players off
+-Reading from server.properties to present information in a server ping
+-Configuration file in a separate .ini file that can be reloaded at any time (See config.ini for a template)
+-GUI
+
+Software Requirements:
+-Python 3.x
+-PySide for Python 3 (Possibly PyQt with slight modifications)
+-Any platform that meets the requirements above (however this is untested under other platforms except Linux)
+
+This software is licensed under the GPLv3. For a copy of the license, see COPYING.
