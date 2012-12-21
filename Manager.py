@@ -56,7 +56,6 @@ class MCmanager:
             kickmessage = self.KICKMESSAGE_DICT['clientolder']
         elif kicktype.lower() == 'notwhitelist':
             kickmessage = self.KICKMESSAGE_DICT['notwhitelist']
-        print(self.makeMCstring(kickmessage))
         self.CLIENTSOCKET.sendall(header + self.makeMCstring(kickmessage))
 
     def receive(self):
@@ -187,7 +186,6 @@ class main:
             willStartup = MCmanager(self.PINGLIST, self.WHITELIST, self.KICKMESSAGE_DICT).start(clientsocket)
             if willStartup:
                 self.SOCKET.close()
-                os.system('ss -lnp')
                 self.startServer()
 
             if self.SHUTDOWN:
