@@ -121,6 +121,7 @@ class main:
         self.STARTUPCOMMAND = None
         self.SHUTDOWN = False
         self.WHITELIST = None
+        self.ISSERVERUP = False
 
     def setSocketInfo(self):
         self.SOCKET = socket.socket()
@@ -128,7 +129,9 @@ class main:
         self.SOCKET.bind((self.HOST, self.PORT))
 
     def startServer(self):
+        self.ISSERVERUP = True
         os.system(self.STARTUPCOMMAND)
+        self.ISSERVERUP = False
 
     def readWhitelist(self, path):
         whitelist = open(path).read().split('\n')
@@ -211,6 +214,7 @@ class guiinterface(QtGui.QMainWindow):
         self.MAINCLASS = main(self)
 
         self.MAINCLASSTHREAD = threading.Thread(target=self.MAINCLASS.start)
+        self.MAINCLASSTHREAD.daemon = True
 
         reloadconfigbutton = QtGui.QPushButton('Reload Configuration')
         reloadconfigbutton.clicked.connect(self.loadConfig)
@@ -254,9 +258,12 @@ class guiinterface(QtGui.QMainWindow):
 
     def shutdown(self):
         self.sendshutdownbutton.hide()
-        self.cancelsendshutdownbutton.show()
-        self.MAINCLASS.SHUTDOWN = True
-        QtGui.QMessageBox.information(self, "Sucess", "The manager will exit after the server has shutdown.")
+        if not self.MAINCLASS.ISSERVERUP:
+            self.close()
+        else:
+            self.cancelsendshutdownbutton.show()
+            self.MAINCLASS.SHUTDOWN = True
+            QtGui.QMessageBox.information(self, "Sucess", "The manager will exit after the server has shutdown.")
 
     def cancelshutdown(self):
         self.sendshutdownbutton.show()
