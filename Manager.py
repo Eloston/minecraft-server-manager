@@ -23,6 +23,7 @@ class MCmanager:
         self.MAXPLAYERS = pinglist[4]
         self.KICKMESSAGE_DICT = kickmessagedict
         self.WHITELIST = whitelist
+        self.SETOFFLINE = None
 
         self.CLIENTSOCKET = None
 
@@ -56,12 +57,15 @@ class MCmanager:
             kickmessage = self.KICKMESSAGE_DICT['clientolder']
         elif kicktype.lower() == 'notwhitelist':
             kickmessage = self.KICKMESSAGE_DICT['notwhitelist']
+        elif kicktype.lower() == 'serveroffline':
+            kickmessage = self.KICKMESSAGE_DICT['serveroffline']
         self.CLIENTSOCKET.sendall(header + self.makeMCstring(kickmessage))
 
     def receive(self):
         '''
         Reads data sent from a client.
         If the client wants to join (sends a 0x02, Handshake) this returns True, otherwise False will be returned.
+        However if a whitelist is enabled in the manager than the client has to be whitelisted first.
         '''
         while True:
             tmprecv = self.CLIENTSOCKET.recv(512)
@@ -87,6 +91,10 @@ class MCmanager:
                 return False
 
             elif clientprotocolversion == self.PROTOCOLVER:
+                if self.SETOFFLINE:
+                    self.sendKickMessage('serveroffline')
+                    return False
+
                 if self.WHITELIST:
                     clientusername = self.getMCstring(tmprecv).lower()
                     if clientusername in self.WHITELIST:
@@ -102,13 +110,20 @@ class MCmanager:
         else:
             return False
 
+    def checkStartup(self, clientobj, setoffline):
+        self.start(clientobj)
+        self.SETOFFLINE = setoffline
+        isGood = self.receive()
+        self.stop()
+        return isGood
+
     def start(self, clientobj):
         self.CLIENTSOCKET = clientobj
         self.CLIENTSOCKET.setblocking(True)
-        willStartup = self.receive()
+
+    def stop(self):
         self.CLIENTSOCKET.shutdown(socket.SHUT_RDWR)
         self.CLIENTSOCKET.close()
-        return willStartup
 
 class main:
     def __init__(self, uiobj):
@@ -122,6 +137,7 @@ class main:
         self.SHUTDOWN = False
         self.WHITELIST = None
         self.ISSERVERUP = False
+        self.SETOFFLINE = False
 
     def setSocketInfo(self):
         self.SOCKET = socket.socket()
@@ -162,7 +178,7 @@ class main:
                 if config.getboolean('ServerManagerConfiguration', 'UseWhiteList'):
                     self.readWhitelist(config['ServerManagerConfiguration']['WhiteListFile'])
                 startupcommand = config["ServerManagerConfiguration"]['StartupCommand']
-                kickmessagedict = {'startup': config["ServerManagerConfiguration"]['KickMessage-Startup'], 'serverolder': config["ServerManagerConfiguration"]['KickMessage-ServerOlder'], 'clientolder': config["ServerManagerConfiguration"]['KickMessage-ClientOlder'], 'notwhitelist': config["ServerManagerConfiguration"]['KickMessage-NotWhiteListed']}
+                kickmessagedict = {'startup': config["ServerManagerConfiguration"]['KickMessage-Startup'], 'serverolder': config["ServerManagerConfiguration"]['KickMessage-ServerOlder'], 'clientolder': config["ServerManagerConfiguration"]['KickMessage-ClientOlder'], 'notwhitelist': config["ServerManagerConfiguration"]['KickMessage-NotWhiteListed'], 'serveroffline': config["ServerManagerConfiguration"]["KickMessage-ServerOffline"]}
                 protocolver = config["ServerManagerConfiguration"]['ProtocolVersion']
                 mcver = config["ServerManagerConfiguration"]['MinecraftVersion']
                 onlineplayers = config["ServerManagerConfiguration"]['OnlinePlayers']
@@ -186,7 +202,8 @@ class main:
         while True:
             self.SOCKET.listen(5)
             clientsocket = self.SOCKET.accept()[0]
-            willStartup = MCmanager(self.PINGLIST, self.WHITELIST, self.KICKMESSAGE_DICT).start(clientsocket)
+            managerobj = MCmanager(self.PINGLIST, self.WHITELIST, self.KICKMESSAGE_DICT)
+            willStartup = managerobj.checkStartup(clientsocket, self.SETOFFLINE)
             if willStartup:
                 self.SOCKET.close()
                 self.startServer()
@@ -222,6 +239,14 @@ class guiinterface(QtGui.QMainWindow):
         self.startbutton = QtGui.QPushButton('Start')
         self.startbutton.clicked.connect(self.start)
 
+        self.setserveronline = QtGui.QPushButton("Toggle server online")
+        self.setserveronline.clicked.connect(self.setonline)
+        self.setserveronline.hide()
+
+        self.setserveroffline = QtGui.QPushButton("Toggle server offline")
+        self.setserveroffline.clicked.connect(self.setoffline)
+        self.setserveroffline.hide()
+
         self.sendshutdownbutton = QtGui.QPushButton('Exit after server shutdown')
         self.sendshutdownbutton.clicked.connect(self.shutdown)
         self.sendshutdownbutton.hide()
@@ -233,6 +258,8 @@ class guiinterface(QtGui.QMainWindow):
         mainlayout = QtGui.QVBoxLayout()
         mainlayout.addWidget(reloadconfigbutton)
         mainlayout.addWidget(self.startbutton)
+        mainlayout.addWidget(self.setserveronline)
+        mainlayout.addWidget(self.setserveroffline)
         mainlayout.addWidget(self.sendshutdownbutton)
         mainlayout.addWidget(self.cancelsendshutdownbutton)
 
@@ -251,10 +278,23 @@ class guiinterface(QtGui.QMainWindow):
 
     def start(self):
         self.startbutton.hide()
+        self.setserveroffline.show()
         self.sendshutdownbutton.show()
         self.MAINCLASS.readConfig()
         self.MAINCLASSTHREAD.start()
         QtGui.QMessageBox.information(self, "Sucess", "Startup complete.")
+
+    def setonline(self):
+        self.setserveronline.hide()
+        self.setserveroffline.show()
+        self.MAINCLASS.SETOFFLINE = False
+        QtGui.QMessageBox.information(self, "Sucess", "The manager is now in ONLINE mode.")
+
+    def setoffline(self):
+        self.setserveronline.show()
+        self.setserveroffline.hide()
+        self.MAINCLASS.SETOFFLINE = True
+        QtGui.QMessageBox.information(self, "Sucess", "The manager is now in OFFLINE mode.")
 
     def shutdown(self):
         self.sendshutdownbutton.hide()
