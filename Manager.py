@@ -138,6 +138,7 @@ class main:
         self.WHITELIST = None
         self.ISSERVERUP = False
         self.SETOFFLINE = False
+        self.FORCESTARTUP = False
 
     def setSocketInfo(self):
         self.SOCKET = socket.socket()
@@ -153,7 +154,8 @@ class main:
         whitelist = open(path).read().split('\n')
         self.WHITELIST = whitelist
 
-    def readConfig(self, configfile='config.ini'):
+    def 
+(self, configfile='config.ini'):
         '''
         Reads a configuration file and loads in parameters.
         Returns True if all the parameters could be read, otherwise returns False
@@ -182,10 +184,7 @@ class main:
                 protocolver = config["ServerManagerConfiguration"]['ProtocolVersion']
                 mcver = config["ServerManagerConfiguration"]['MinecraftVersion']
                 onlineplayers = config["ServerManagerConfiguration"]['OnlinePlayers']
-            except KeyError:
-                return False
-
-            except ValueError:
+            except:
                 return False
 
             self.HOST = host
@@ -201,9 +200,14 @@ class main:
         self.setSocketInfo()
         while True:
             self.SOCKET.listen(5)
-            clientsocket = self.SOCKET.accept()[0]
-            managerobj = MCmanager(self.PINGLIST, self.WHITELIST, self.KICKMESSAGE_DICT)
-            willStartup = managerobj.checkStartup(clientsocket, self.SETOFFLINE)
+            if self.FORCESTARTUP:
+                willStartup = True
+                self.FORCESTARTUP = False
+            else:
+                clientsocket = self.SOCKET.accept()[0]
+                managerobj = MCmanager(self.PINGLIST, self.WHITELIST, self.KICKMESSAGE_DICT)
+                willStartup = managerobj.checkStartup(clientsocket, self.SETOFFLINE)
+
             if willStartup:
                 self.SOCKET.close()
                 self.startServer()
@@ -236,8 +240,12 @@ class guiinterface(QtGui.QMainWindow):
         reloadconfigbutton = QtGui.QPushButton('Reload Configuration')
         reloadconfigbutton.clicked.connect(self.loadConfig)
 
-        self.startbutton = QtGui.QPushButton('Start')
+        self.startbutton = QtGui.QPushButton('Start Manager')
         self.startbutton.clicked.connect(self.start)
+
+        self.forcestartupbutton = QtGui.QPushButton('Initiate Server Startup')
+        self.forcestartupbutton.clicked.connect(self.forcestartup)
+        self.forcestartupbutton.hide()
 
         self.setserveronline = QtGui.QPushButton("Toggle server online")
         self.setserveronline.clicked.connect(self.setonline)
@@ -258,6 +266,7 @@ class guiinterface(QtGui.QMainWindow):
         mainlayout = QtGui.QVBoxLayout()
         mainlayout.addWidget(reloadconfigbutton)
         mainlayout.addWidget(self.startbutton)
+        mainlayout.addWidget(self.forcestartupbutton)
         mainlayout.addWidget(self.setserveronline)
         mainlayout.addWidget(self.setserveroffline)
         mainlayout.addWidget(self.sendshutdownbutton)
@@ -280,9 +289,26 @@ class guiinterface(QtGui.QMainWindow):
         self.startbutton.hide()
         self.setserveroffline.show()
         self.sendshutdownbutton.show()
-        self.MAINCLASS.readConfig()
-        self.MAINCLASSTHREAD.start()
-        QtGui.QMessageBox.information(self, "Sucess", "Startup complete.")
+        self.forcestartupbutton.show()
+        readsuccess = self.MAINCLASS.readConfig()
+        if readsuccess:
+            self.MAINCLASSTHREAD.start()
+            QtGui.QMessageBox.information(self, "Sucess", "Startup complete.")
+        else:
+            QtGui.QMessageBox.critical(self, "Failure", "An error encountered while reading configuration files.", QtGui.QMessageBox.Ok)
+            self.close()
+
+    def forcestartup(self):
+        if self.MAINCLASS.ISSERVERUP:
+            QtGui.QMessageBox.critical(self, "Failure", "The server is already up.", QtGui.QMessageBox.Ok)
+        else:
+            self.MAINCLASS.FORCESTARTUP = True
+            tmpsocket = socket.socket()
+            tmpsocket.connect((self.MAINCLASS.HOST, self.MAINCLASS.PORT))
+            tmpsocket.send(bytes("a", "UTF-8)"))
+            tmpsocket.close()
+            del tmpsocket
+            QtGui.QMessageBox.information(self, "Sucess", "Startup of the Minecraft server initiated.")
 
     def setonline(self):
         self.setserveronline.hide()
