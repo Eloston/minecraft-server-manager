@@ -67,54 +67,72 @@ class MCmanager:
         If the client wants to join (sends a 0x02, Handshake) this returns True, otherwise False will be returned.
         However if a whitelist is enabled in the manager than the client has to be whitelisted first.
         '''
-        while True:
+        loopcount = 0
+        while not loopcount == 7:
+            print("Getting client data")
             tmprecv = self.CLIENTSOCKET.recv(512)
             if len(tmprecv) > 0:
                 header = struct.unpack('B', tmprecv[:1])[0]
                 tmprecv = tmprecv[1:]
                 break
             else:
+                loopcount += 1
                 time.sleep(0.05)
+        if loopcount == 7:
+            print("Reached loop limit")
+            return False
         if header == 0xFE:
+            print("Got pinged")
             self.sendPingResponse()
             return False
 
         elif header == 0x02:
+            print("Player is trying to connect")
             clientprotocolversion = str(struct.unpack('B', tmprecv[:1])[0])
             tmprecv = tmprecv[1:]
             if clientprotocolversion > self.PROTOCOLVER:
+                print("Player disconnected for older server")
                 self.sendKickMessage('serverolder')
                 return False
 
             elif clientprotocolversion < self.PROTOCOLVER:
+                print("Player disconnected for older client")
                 self.sendKickMessage('clientolder')
                 return False
 
             elif clientprotocolversion == self.PROTOCOLVER:
                 if self.SETOFFLINE:
+                    print("Server is offline")
                     self.sendKickMessage('serveroffline')
                     return False
 
                 if self.WHITELIST:
                     clientusername = self.getMCstring(tmprecv).lower()
+                    print("Using whitelist. Player "+clientusername+" connected.")
                     if clientusername in self.WHITELIST:
                         self.sendKickMessage('startup')
+                        print("Ready to startup server")
                         return True
                     else:
                         self.sendKickMessage('notwhitelist')
+                        print("Player is not in whitelist")
                         return False
                 else:
                     self.sendKickMessage('startup')
+                    print("Ready to startup server")
                     return True
 
         else:
+            print("I got junk...?! Data: "+str(tmprecv))
             return False
 
     def checkStartup(self, clientobj, setoffline):
         self.start(clientobj)
+        print("Started client socket object")
         self.SETOFFLINE = setoffline
         isGood = self.receive()
         self.stop()
+        print("Stopped client socket object")
         return isGood
 
     def start(self, clientobj):
@@ -154,8 +172,7 @@ class main:
         whitelist = open(path).read().split('\n')
         self.WHITELIST = whitelist
 
-    def 
-(self, configfile='config.ini'):
+    def readConfig(self, configfile='config.ini'):
         '''
         Reads a configuration file and loads in parameters.
         Returns True if all the parameters could be read, otherwise returns False
@@ -199,20 +216,28 @@ class main:
     def start(self):
         self.setSocketInfo()
         while True:
+            print("Going to listen")
             self.SOCKET.listen(5)
+            print("Got connection from someone")
             if self.FORCESTARTUP:
+                print("Got hacky connection from myself")
                 willStartup = True
                 self.FORCESTARTUP = False
             else:
+                print("Someone externally connected, or just waiting for external connections")
                 clientsocket = self.SOCKET.accept()[0]
+                print("Accepted client socket")
                 managerobj = MCmanager(self.PINGLIST, self.WHITELIST, self.KICKMESSAGE_DICT)
+                print("Initiated manager object")
                 willStartup = managerobj.checkStartup(clientsocket, self.SETOFFLINE)
 
             if willStartup:
                 self.SOCKET.close()
+                print("Starting up server")
                 self.startServer()
 
             if self.SHUTDOWN:
+                print("Shutting down...")
                 self.SOCKET.close()
                 self.UICLASS.close()
                 break
