@@ -10,6 +10,7 @@ import time
 import configparser
 import threading
 import os
+import os.path
 
 class MCmanager:
     def __init__(self, pinglist, whitelist, kickmessagedict):
@@ -70,7 +71,10 @@ class MCmanager:
         loopcount = 0
         while not loopcount == 7:
             print("Getting client data")
-            tmprecv = self.CLIENTSOCKET.recv(512)
+            try:
+                tmprecv = self.CLIENTSOCKET.recv(512)
+            except Exception, error:
+                print("***Error while getting client data:", str(error))
             if len(tmprecv) > 0:
                 header = struct.unpack('B', tmprecv[:1])[0]
                 tmprecv = tmprecv[1:]
@@ -172,7 +176,7 @@ class main:
         whitelist = open(path).read().split('\n')
         self.WHITELIST = whitelist
 
-    def readConfig(self, configfile='config.ini'):
+    def readConfig(self):
         '''
         Reads a configuration file and loads in parameters.
         Returns True if all the parameters could be read, otherwise returns False
@@ -367,7 +371,13 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
 
+    oldpath = os.getcwd()
+
+    os.chdir(os.path.dirname(__file__))
+
     interface = guiinterface()
     interface.show()
+
+    os.chdir(oldpath)
 
     sys.exit(app.exec_())
