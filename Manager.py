@@ -73,7 +73,7 @@ class MCmanager:
             print("Getting client data")
             try:
                 tmprecv = self.CLIENTSOCKET.recv(512)
-            except Exception, error:
+            except Exception as error:
                 print("***Error while getting client data:", str(error))
             if len(tmprecv) > 0:
                 header = struct.unpack('B', tmprecv[:1])[0]
@@ -205,7 +205,8 @@ class main:
                 protocolver = config["ServerManagerConfiguration"]['ProtocolVersion']
                 mcver = config["ServerManagerConfiguration"]['MinecraftVersion']
                 onlineplayers = config["ServerManagerConfiguration"]['OnlinePlayers']
-            except:
+            except Exception as error:
+                print(error)
                 return False
 
             self.HOST = host
@@ -371,13 +372,19 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
 
-    oldpath = os.getcwd()
+    #oldpath = os.getcwd()
 
-    os.chdir(os.path.dirname(__file__))
+    #os.chdir(os.path.dirname(__file__))
+
+    #os.chdir(os.path.dirname(os.path.realpath(os.path.basename(__file__))))
+
+    #print(os.getcwd())
+
+    #Configparser doesn't respect current working directories apparently
 
     interface = guiinterface()
     interface.show()
 
-    os.chdir(oldpath)
+    #os.chdir(oldpath)
 
     sys.exit(app.exec_())
