@@ -75,6 +75,9 @@ class MCmanager:
                 tmprecv = self.CLIENTSOCKET.recv(512)
             except Exception as error:
                 print("***Error while getting client data:", str(error))
+                loopcount += 1
+                time.sleep(0.05)
+                continue
             if len(tmprecv) > 0:
                 header = struct.unpack('B', tmprecv[:1])[0]
                 tmprecv = tmprecv[1:]
