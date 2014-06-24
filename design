@@ -1,0 +1,24 @@
+Minecraft Server Manager
+========================
+
+1.7 and above
+
+Adopt mc_server_status.py code
+
+Code Layout:
+===========
+
+NetworkManager # Manages communication with clients
+    def listen_loop # Listening loop
+
+ConfigManager # Manages Minecraft Server Manager config.ini and other server config/files
+    def read_main_config # Reads config.ini
+    def read_server_properties # Reads server.properties
+
+ProcessManager # Manages the Minecraft server process
+    def set_launch_command
+    def start_server
+
+MainManager # Manages the other managers
+
+MainGUI # Graphical interface
