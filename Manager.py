@@ -19,6 +19,8 @@ import base64
 import struct
 import socket
 import threading
+import io
+import enum
 
 class JSONTools:
     @staticmethod
@@ -110,7 +112,12 @@ class FileTools:
         '''
         return os.path.dirname(file_path)
 
-class NetworkManager:
+class HandshakeState(enum.Enum):
+    error = -1
+    status = 1
+    login = 2
+
+class NetworkManagerClass:
     def __init__(self):
         self.networking_thread = threading.Thread(target=self._listen_loop)
         self.networking_thread.daemon = True
@@ -118,10 +125,19 @@ class NetworkManager:
         self.socket = None
 
     # Varint functions modified for Python 3 from https://gist.github.com/barneygale/1209061
-    def _unpack_varint(s):
+    def _unpack_varint_socket(s):
         d = 0
         for i in range(5):
             b = ord(s.recv(1))
+            d |= (b & 0x7F) << 7*i
+            if not b & 0x80:
+                break
+        return d
+
+    def _unpack_varint(bytesio):
+        d = 0
+        for i in range(5):
+            b = ord(bytesio.read(1))
             d |= (b & 0x7F) << 7*i
             if not b & 0x80:
                 break
@@ -139,7 +155,7 @@ class NetworkManager:
 
     def _read_string(self, s):
         str_len = self._unpack_varint(s)
-        return s.recv(str_len).decode("UTF-8")
+        return s.read(str_len).decode("UTF-8")
 
     def _encode_string(self, value):
         '''
@@ -149,6 +165,55 @@ class NetworkManager:
         str_bytes += value.encode("UTF-8")
         return str_bytes
 
+    def _read_ushort(self, s):
+        fmt = ">H"
+        return struct.unpack(fmt, s.read(struct.calcsize(fmt)))[0]
+
+    def _read_packet(self):
+        packet_len = self._unpack_varint_socket(self.socket)
+        packet_buffer = io.BytesIO(self.socket.recv(packet_len))
+        packet_id = self._unpack_varint(packet_buffer)
+        return packet_id, packet_buffer
+
+    def _send_packet(self, data):
+        data.seek(0)
+        raw_bytes = data.read()
+        self.socket.send(self._pack_varint(len(raw_bytes))
+        self.socket.send(raw_bytes)
+
+    def _read_handshake(self):
+        packet_id, packet_buffer = self._read_packet()
+        if not packet_id == 0x00:
+            print("ERROR: Packet ID is not a Handshake")
+            return HandshakeState.error
+        protocol_ver = self._unpack_varint(packet_buffer)
+        if protocol_ver > ConfigManager.get_protocol_version():
+            print("WARNING: Server is older than client. Client: " + str(protocol_ver) + ", Server: " + str(ConfigManager.get_protocol_version()))
+            self._send_disconnect(ConfigManager.get_kick_serverold())
+            return HandshakeState.error
+        elif protocol_ver < ConfigManager.get_protocol_version():
+            print("WARNING: Client is older than server. Client: " + str(protocol_ver) + ", Server: " + str(ConfigManager.get_protocol_version()))
+            self._send_disconnect(ConfigManager.get_kick_clientold())
+            return HandshakeState.error
+        server_addr = self._read_string(packet_buffer)
+        server_port = self._read_ushort(packet_buffer)
+        next_state = self._unpack_varint(packet_buffer)
+        if next_state == HandshakeState.status.value:
+            print("INFO: Client requested status")
+            return HandshakeState.status
+        elif next_state == HandshakeState.login.value:
+            print("INFO: Client trying to login")
+            return HandshakeState.login
+        else:
+            print("ERROR: Invalid status in Handshake")
+            return HandshakeState.error
+
+    def _send_disconnect(self, reason):
+        packet_buffer = io.BytesIO()
+        packet_buffer.write(self._pack_varint(0x40))
+        packet_buffer.write(self._encode_string(reason))
+        self._send_packet(packet_buffer)
+
     def _setup_socket(self):
         self.socket = socket.socket()
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -157,7 +222,7 @@ class NetworkManager:
     def _listen_loop(self):
         pass
 
-class ConfigManager:
+class ConfigManagerClass:
     CONFIG_SECT = "ServerManagerConfiguration"
     def __init__(self):
         self.icon_base64 = None
@@ -179,6 +244,13 @@ class ConfigManager:
         self.kick_serveroffline = None
 
         self.whitelist = None
+
+    def load_configuration(self):
+        self.load_icon()
+        self.load_server_properties()
+        if self.get_use_whitelist():
+            self.load_whitelist()
+        self.load_main_config()
 
     # server-icon.png
 
@@ -251,6 +323,30 @@ class ConfigManager:
         else:
             return False
 
+    def get_startup_command(self):
+        return self.startup_command
+
+    def get_version_name(self):
+        return self.version_name
+
+    def get_protocol_version(self):
+        return self.protocol_version
+
+    def get_kick_startup(self):
+        return self.kick_startup
+
+    def get_kick_serverold(self):
+        return self.kick_serverold
+
+    def get_kick_clientold(self):
+        return self.kick_clientold
+
+    def get_kick_notwhitelisted(self):
+        return self.kick_notwhitelisted
+
+    def get_kick_serveroffline(self):
+        return self.kick_serveroffline
+
     # whitelist.json
 
     def load_whitelist(self):
@@ -262,13 +358,14 @@ class ConfigManager:
                 return True
         return False
 
-class ProcessManager:
+class ProcessManagerClass:
     def set_launch_command(self, command):
-        pass
-
-class MainManager:
-    def __init__(self):
         pass
 
 class MainGUI:
     pass
+
+ConfigManager = ConfigManagerClass()
+ConfigManager.load_configuration()
+NetworkManager = NetworkManagerClass()
+ProcessManager = ProcessManagerClass()
