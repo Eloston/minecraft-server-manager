@@ -21,6 +21,8 @@ import socket
 import threading
 import io
 import enum
+import logging
+import os.path
 
 class JSONTools:
     @staticmethod
@@ -178,34 +180,34 @@ class NetworkManagerClass:
     def _send_packet(self, data):
         data.seek(0)
         raw_bytes = data.read()
-        self.socket.send(self._pack_varint(len(raw_bytes))
+        self.socket.send(self._pack_varint(len(raw_bytes)))
         self.socket.send(raw_bytes)
 
     def _read_handshake(self):
         packet_id, packet_buffer = self._read_packet()
         if not packet_id == 0x00:
-            print("ERROR: Packet ID is not a Handshake")
+            logging.error("Packet ID is not a Handshake")
             return HandshakeState.error
         protocol_ver = self._unpack_varint(packet_buffer)
         if protocol_ver > ConfigManager.get_protocol_version():
-            print("WARNING: Server is older than client. Client: " + str(protocol_ver) + ", Server: " + str(ConfigManager.get_protocol_version()))
+            logging.warning("Server is older than client. Client: " + str(protocol_ver) + ", Server: " + str(ConfigManager.get_protocol_version()))
             self._send_disconnect(ConfigManager.get_kick_serverold())
             return HandshakeState.error
         elif protocol_ver < ConfigManager.get_protocol_version():
-            print("WARNING: Client is older than server. Client: " + str(protocol_ver) + ", Server: " + str(ConfigManager.get_protocol_version()))
+            logging.warning("Client is older than server. Client: " + str(protocol_ver) + ", Server: " + str(ConfigManager.get_protocol_version()))
             self._send_disconnect(ConfigManager.get_kick_clientold())
             return HandshakeState.error
         server_addr = self._read_string(packet_buffer)
         server_port = self._read_ushort(packet_buffer)
         next_state = self._unpack_varint(packet_buffer)
         if next_state == HandshakeState.status.value:
-            print("INFO: Client requested status")
+            logging.info("Client requested status")
             return HandshakeState.status
         elif next_state == HandshakeState.login.value:
-            print("INFO: Client trying to login")
+            logging.info("Client trying to login")
             return HandshakeState.login
         else:
-            print("ERROR: Invalid status in Handshake")
+            logging.error("Invalid status in Handshake")
             return HandshakeState.error
 
     def _send_disconnect(self, reason):
@@ -313,6 +315,10 @@ class ConfigManagerClass:
         config.read("config.ini")
         if len(config.sections()) == 1 and config.sections()[0] == ConfigManager.CONFIG_SECT:
             self.startup_command = config[ConfigManager.CONFIG_SECT]["StartupCommand"]
+            logging_level = config[ConfigManager.CONFIG_SECT]["LoggingLevel"]
+            logging_format = config.get(ConfigManager.CONFIG_SECT, "LoggingFormat", raw=True)
+            logging.basicConfig(format=logging_format, level=logging_level)
+            logging.info("Logger configuration loaded")
             self.version_name = config[ConfigManager.CONFIG_SECT]["VersionName"]
             self.protocol_version = config.getint(ConfigManager.CONFIG_SECT, "ProtocolVersion")
             self.kick_startup = config[ConfigManager.CONFIG_SECT]["KickMessage-Startup"]
@@ -369,3 +375,4 @@ ConfigManager = ConfigManagerClass()
 ConfigManager.load_configuration()
 NetworkManager = NetworkManagerClass()
 ProcessManager = ProcessManagerClass()
+
