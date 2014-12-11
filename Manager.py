@@ -269,6 +269,13 @@ class NetworkManagerClass:
         self.client_socket.shutdown(socket.SHUT_RDWR)
         self.client_socket.close()
 
+    def _startup_server(self):
+        self._send_disconnect(ConfigManager.get_kick_startup())
+        self._stop_client_socket()
+        self.server_socket.close()
+        ProcessManager.launch_server()
+        self._setup_server_socket()
+
     def _listen_loop(self):
         try:
             self._setup_server_socket()
@@ -292,7 +299,6 @@ class NetworkManagerClass:
                         if self._read_status_request():
                             self._send_status_response()
                             self._read_ping()
-
                     elif shake_state == HandshakeState.login:
                         username = self._read_login_start()
                         if STATE.temp_offline:
@@ -304,32 +310,23 @@ class NetworkManagerClass:
                             LOG.info("Player username: " + username)
                             if ConfigManager.get_is_online_mode():
                                 player_uuid = self._get_player_uuid(username)
-                                if player_uuid is None:
+                                if player_uuid is None: # NOTE: This does not guarentee that the user is not spoofing usernames
                                     self._send_disconnect(ConfigManager.get_kick_authenticationerror())
+                                    self._stop_client_socket()
+                                    continue
                                 else:
                                     LOG.info("Player UUID: " + player_uuid)
-                                    if ConfigManager.uuid_in_whitelist(player_uuid):
-                                        self._send_disconnect(ConfigManager.get_kick_startup())
-                                        self._stop_client_socket()
-                                        self.server_socket.close()
-                                        ProcessManager.launch_server()
-                                        self._setup_server_socket()
-                                        continue
-                                    else:
+                                    if ConfigManager.get_use_whitelist() and not ConfigManager.uuid_in_whitelist(player_uuid):
                                         self._send_disconnect(ConfigManager.get_kick_notwhitelisted())
                                         LOG.info("Player is not whitelisted")
                             else:
-                                if ConfigManager.name_in_whitelist(username):
-                                    self._send_disconnect(ConfigManager.get_kick_startup())
-                                    self._stop_client_socket()
-                                    self.server_socket.close()
-                                    ProcessManager.launch_server()
-                                    self._setup_server_socket()
-                                    continue
-                                else:
-                                    self._send_disconnect(ConfigManager.get_kick_notwhitelisted())
-                                    LOG.info("Player is not whitelisted")
-
+                                if ConfigManager.get_use_whitelist() and not ConfigManager.name_in_whitelist(username):
+                                        self._send_disconnect(ConfigManager.get_kick_notwhitelisted())
+                                        LOG.info("Player is not whitelisted")
+                                        self._stop_client_socket()
+                                        continue
+                            self._startup_server()
+                            continue
                     else:
                         LOG.error("Internal application error occured")
                         LOG.debug("Invalid state " + str(shake_state))
@@ -340,7 +337,6 @@ class NetworkManagerClass:
                 except:
                     LOG.exception("Exception thrown during client communication")
                     LOG.error("An error occured during client communication")
-                self._stop_client_socket()
             Interface.close()
         except:
             LOG.exception("Unexpected exception thrown in listen thread")

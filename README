@@ -4,7 +4,7 @@ Developed and Maintained by Eloston
 
 Minecraft Server Manager is a 'super-server' (like inetd) for Minecraft servers. It will listen on the server's port, and start the server when someone tries to connect. The port will be released by this manager, and the server will take over. It is up to the server to shut down once it starts running (e.g. a Bukkit server with an auto-shutdown plugin)
 
-This application currently supports Minecraft 1.7.x
+This application currently supports Minecraft 1.8.x
 
 Currently the Manager supports:
 -On-demand reloading of configuration files
